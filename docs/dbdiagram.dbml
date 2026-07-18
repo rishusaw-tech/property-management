@@ -1,0 +1,192 @@
+// ============================================================
+// PMFMS - Database Diagram
+// Paste this into https://dbdiagram.io to render the ER diagram
+// ============================================================
+
+Table users {
+  id          bigint   [pk, increment]
+  full_name   varchar(120) [not null]
+  email       varchar(160) [not null, unique]
+  password    varchar(255) [not null]
+  phone       varchar(20)
+  role        varchar(30)  [not null, note: 'ADMIN | PROPERTY_MANAGER | FACILITY_MANAGER | TENANT | OWNER | VENDOR']
+  active      boolean      [not null, default: true]
+  created_at  timestamp    [not null]
+}
+
+Table refresh_tokens {
+  id          bigint [pk, increment]
+  token       varchar(512) [not null, unique]
+  user_id     bigint [not null]
+  expiry_date timestamp [not null]
+  created_at  timestamp [not null]
+  Note: 'One row per active device session'
+}
+
+Table password_reset_tokens {
+  id          bigint [pk, increment]
+  token       varchar(512) [not null, unique]
+  user_id     bigint [not null]
+  expiry_date timestamp [not null]
+}
+
+Table properties {
+  id           bigint [pk, increment]
+  code         varchar(40) [not null, unique, note: 'Auto-generated Property ID (PROP-...)']
+  name         varchar(160) [not null]
+  address_line varchar(255) [not null]
+  city         varchar(80) [not null]
+  state        varchar(80)
+  country      varchar(80) [not null]
+  postal_code  varchar(20)
+  latitude     decimal(9,6)
+  longitude    decimal(9,6)
+  type         varchar(30) [not null, note: 'RESIDENTIAL | COMMERCIAL | MIXED_USE']
+  status       varchar(30) [not null, note: 'DRAFT | PENDING_VERIFICATION | LEGAL_REVIEW | ACTIVE | INACTIVE | DISPOSED']
+  owner_id     bigint [not null]
+  created_at   timestamp [not null]
+  updated_at   timestamp
+}
+
+Table units {
+  id           bigint [pk, increment]
+  code         varchar(40) [not null, unique, note: 'Auto-generated Unit ID (UNIT-...)']
+  property_id  bigint [not null]
+  floor_number int
+  area_sqft    decimal(10,2) [not null]
+  bedrooms     int
+  bathrooms    int
+  monthly_rent decimal(14,2)
+  status       varchar(30) [not null, note: 'VACANT | OCCUPIED | UNDER_MAINTENANCE | BLOCKED']
+  created_at   timestamp [not null]
+  updated_at   timestamp
+}
+
+Table unit_amenities {
+  unit_id bigint      [pk]
+  amenity varchar(80) [pk]
+  Note: 'Amenities normalized out of units (2NF)'
+}
+
+Table leases {
+  id                 bigint [pk, increment]
+  code               varchar(40) [not null, unique, note: 'LSE-...']
+  unit_id            bigint [not null]
+  tenant_id          bigint [not null]
+  start_date         date [not null]
+  end_date           date [not null]
+  monthly_rent       decimal(14,2) [not null]
+  security_deposit   decimal(14,2) [not null]
+  billing_cycle      varchar(20) [not null, note: 'MONTHLY | QUARTERLY | ANNUAL']
+  status             varchar(30) [not null, note: 'DRAFT | PENDING_APPROVAL | ACTIVE | RENEWAL_DUE | NOTICE_SERVED | TERMINATED | CLOSED']
+  notice_period_days int [not null]
+  created_at         timestamp [not null]
+  updated_at         timestamp
+}
+
+Table invoices {
+  id             bigint [pk, increment]
+  invoice_number varchar(40) [not null, unique, note: 'INV-...']
+  lease_id       bigint [not null]
+  type           varchar(20) [not null, note: 'RENT | CAM | UTILITY | LATE_FEE | ONE_TIME']
+  amount         decimal(14,2) [not null]
+  amount_paid    decimal(14,2) [not null, default: 0]
+  due_date       date [not null]
+  status         varchar(30) [not null, note: 'GENERATED | SENT | PARTIALLY_PAID | PAID | OVERDUE | ESCALATED | WRITTEN_OFF']
+  created_at     timestamp [not null]
+}
+
+Table payments {
+  id         bigint [pk, increment]
+  reference  varchar(60) [not null, unique, note: 'Idempotency key - same reference never processed twice']
+  invoice_id bigint [not null]
+  amount     decimal(14,2) [not null]
+  mode       varchar(30) [not null, note: 'ONLINE_GATEWAY | BANK_TRANSFER | AUTO_DEBIT | CASH | CHEQUE']
+  status     varchar(20) [not null]
+  paid_at    timestamp [not null]
+  created_at timestamp [not null]
+}
+
+Table assets {
+  id              bigint [pk, increment]
+  tag             varchar(40) [not null, unique, note: 'QR/barcode tag (AST-...)']
+  name            varchar(120) [not null]
+  property_id     bigint [not null]
+  category        varchar(30) [not null, note: 'HVAC | ELEVATOR | GENERATOR | FIRE_SYSTEM | ...']
+  make            varchar(80)
+  model           varchar(80)
+  serial_number   varchar(120)
+  installed_on    date
+  warranty_expiry date
+  status          varchar(30) [not null]
+  created_at      timestamp [not null]
+  updated_at      timestamp
+}
+
+Table vendors {
+  id             bigint [pk, increment]
+  company_name   varchar(160) [not null]
+  category       varchar(30) [not null]
+  contact_name   varchar(120)
+  contact_email  varchar(160) [not null]
+  contact_phone  varchar(20)
+  rating         decimal(3,2) [note: '0.00 - 5.00 SLA scorecard']
+  status         varchar(20) [not null, note: 'ACTIVE | INACTIVE | BLACKLISTED']
+  contract_start date
+  contract_end   date
+  user_id        bigint [note: 'Optional portal login (role VENDOR)']
+  created_at     timestamp [not null]
+  updated_at     timestamp
+}
+
+Table work_orders {
+  id                 bigint [pk, increment]
+  number             varchar(40) [not null, unique, note: 'WO-...']
+  type               varchar(20) [not null, note: 'PREVENTIVE | CORRECTIVE']
+  priority           varchar(10) [not null, note: 'CRITICAL | HIGH | MEDIUM | LOW - drives SLA']
+  status             varchar(20) [not null, note: 'NEW | ASSIGNED | ACKNOWLEDGED | IN_PROGRESS | ON_HOLD | RESOLVED | CLOSED | REOPENED']
+  title              varchar(160) [not null]
+  description        varchar(2000)
+  property_id        bigint [not null]
+  unit_id            bigint
+  asset_id           bigint
+  raised_by_id       bigint [not null]
+  assigned_vendor_id bigint
+  sla_due_at         timestamp [not null]
+  acknowledged_at    timestamp
+  resolved_at        timestamp
+  closed_at          timestamp
+  created_at         timestamp [not null]
+  updated_at         timestamp
+}
+
+Table compliance_records {
+  id                 bigint [pk, increment]
+  property_id        bigint [not null]
+  certificate_type   varchar(40) [not null, note: 'FIRE_SAFETY | LIFT_LICENSE | ...']
+  certificate_number varchar(80) [not null]
+  issued_by          varchar(120)
+  issue_date         date [not null]
+  expiry_date        date [not null]
+  status             varchar(20) [not null, note: 'VALID | EXPIRING_SOON (<=30d) | EXPIRED']
+  created_at         timestamp [not null]
+}
+
+// ================= Relationships =================
+Ref: refresh_tokens.user_id        > users.id
+Ref: password_reset_tokens.user_id > users.id
+Ref: properties.owner_id           > users.id           // owner (role OWNER)
+Ref: units.property_id             > properties.id
+Ref: unit_amenities.unit_id        > units.id
+Ref: leases.unit_id                > units.id
+Ref: leases.tenant_id              > users.id           // tenant (role TENANT)
+Ref: invoices.lease_id             > leases.id
+Ref: payments.invoice_id           > invoices.id
+Ref: assets.property_id            > properties.id
+Ref: vendors.user_id               - users.id           // optional 1-1 portal login
+Ref: work_orders.property_id       > properties.id
+Ref: work_orders.unit_id           > units.id
+Ref: work_orders.asset_id          > assets.id
+Ref: work_orders.raised_by_id      > users.id
+Ref: work_orders.assigned_vendor_id > vendors.id
+Ref: compliance_records.property_id > properties.id
